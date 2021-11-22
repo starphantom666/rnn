@@ -1,0 +1,129 @@
+#softmax
+def softmax(x):
+    e = np.exp(x)
+    return e/np.sum(e)
+
+#sigmoid
+def sigmoid(x):
+    if x>=0:
+        return 1/(1+np.exp(-x))
+    else:
+        return np.power(np.e,x)/(1+np.power(np.e,x))
+
+#tanh
+def tanh(x):
+    return np.tanh(x)
+
+
+
+import numpy as np
+from functools import reduce
+
+
+# input_size:输入x的维度
+# hidden_size：隐藏层的维度
+# out_put_size:标签的维度，一般是有几个标签就是多少维
+
+class Rnn():
+    def __init__(self, vacab_size, hidden_size):
+        self.learn_rate = 0.05
+        self.hidden_size = hidden_size
+        self.Wx = np.random.uniform(-0.5,0.5,(hidden_size, vacab_size))
+        self.Wh = np.random.uniform(-0.5,0.5,(hidden_size, hidden_size))
+        self.Wy = np.random.uniform(-0.5,0.5,(vacab_size, hidden_size))
+        self.Bh = np.zeros((hidden_size, 1))
+        self.By = np.zeros((vacab_size, 1))
+
+    def rnn_cell(self, xt, h_prev):
+
+        #套公式
+        net = np.dot(self.Wx, xt) + np.dot(self.Wh, h_prev) + self.Bh
+        h = tanh(net)
+        o = np.dot(self.Wy, h) + self.By
+        y_hat = softmax(o)
+
+        return h, y_hat
+
+    def run(self, x, y,idx2char):
+        #初始化y_hat、h的容器
+        #初始化h0、loss
+        y_hat,h = {},{}
+        h[-1] = np.zeros(self.Bh.shape)
+        loss = 0
+
+        #前向传播
+        for t, xt in enumerate(x):
+            h[t], y_hat[t] = self.rnn_cell(xt, h[t-1])
+            loss += -np.sum(y[t] * np.log(np.array(y_hat[t])) + (1 - y[t]) * np.log(1 - np.array(y_hat[t])))
+        #反向传播
+        self.backward(x, h, y_hat, y)
+
+        #预测
+        pred = "".join([idx2char[np.argmax(i)] for i in y_hat.values()])
+
+        return loss,pred
+
+    def backward(self, xt, h, y_hat, y):
+        #初始化各个梯度的容器
+        W_gradient = np.zeros(self.Wh.shape)
+        U_gradient = np.zeros(self.Wx.shape)
+        B_gradient = np.zeros(self.Bh.shape)
+        V_gradient = np.zeros(self.Wy.shape)
+        C_gradient = np.zeros(self.By.shape)
+
+        T = len(xt)
+        for t in range(T):
+
+            #这里我是自己推的公式找的规律，delta项在W、U、b项具有出现，所以先求出来
+            D_tanh = reduce(lambda x, y: x * (1 - np.square(h[t])), range(T - 1, t-1, -1), 1)
+            delta = np.power(self.Wh,T-t-1).dot(D_tanh)*np.dot(self.Wy.T,y_hat[t] - y[t])
+
+            # W
+            W_gradient += delta*(h[t])
+            # U
+            U_gradient += delta.dot(xt[t].T)
+            # b
+            B_gradient += delta
+
+            # V
+            V_gradient += np.dot((y_hat[t] - y[t]), h[t].T)
+            # c
+            C_gradient += (y_hat[t] - y[t])
+
+            #梯度修剪
+            for i in [W_gradient, U_gradient, B_gradient, V_gradient, C_gradient]:
+                np.clip(i, -5, 5, out=i)
+
+        #更新梯度
+        self.Wx -= self.learn_rate * U_gradient
+        self.Wh -= self.learn_rate * W_gradient
+        self.Bh -= self.learn_rate * B_gradient
+        self.Wy -= self.learn_rate * V_gradient
+        self.By -= self.learn_rate * C_gradient
+
+
+x = "hello"
+y = "ohlol"
+idx2char = list(set("".join(x)+"".join(y)))
+
+x_data = [idx2char.index(i) for i in x]
+y_data = [idx2char.index(i) for i in y]
+
+one_hot_lookup = [[0]*i+[1]+[0]*(len(idx2char)-i-1) for i in range(len(idx2char))]#生成onehot
+
+X = [np.array([one_hot_lookup[x]]).T for x in x_data]
+Y = [np.array([one_hot_lookup[y]]).T for y in y_data]
+
+vacab_size = len(idx2char)
+hidden_size = 100
+
+rnn = Rnn(vacab_size, hidden_size)
+for i in range(35):
+    loss,pred = rnn.run(X,Y, idx2char)
+    print(f"epoch:{i}/35  loss:{loss}")
+    print(pred)
+    if pred == y:
+        break
+
+
+
