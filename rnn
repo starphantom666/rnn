@@ -20,10 +20,6 @@ import numpy as np
 from functools import reduce
 
 
-# input_size:输入x的维度
-# hidden_size：隐藏层的维度
-# out_put_size:标签的维度，一般是有几个标签就是多少维
-
 class Rnn():
     def __init__(self, vacab_size, hidden_size):
         self.learn_rate = 0.05
@@ -54,7 +50,7 @@ class Rnn():
         #前向传播
         for t, xt in enumerate(x):
             h[t], y_hat[t] = self.rnn_cell(xt, h[t-1])
-            loss += -np.sum(y[t] * np.log(np.array(y_hat[t])) + (1 - y[t]) * np.log(1 - np.array(y_hat[t])))
+            loss += -np.sum(y[t] * np.log(y_hat[t]) + (1 - y[t]) * np.log(1 - y_hat[t]))
         #反向传播
         self.backward(x, h, y_hat, y)
 
